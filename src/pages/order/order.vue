@@ -6,16 +6,25 @@ import axios from 'axios';
 const route = useRoute();
 const router = useRouter();
 
-const productId = ref(route.params.productId);
+
+const productId = route.params.productId;
 
 //商品信息
-const product = reactive({
-  name: '',
+const productInfo = reactive({
+  title: '',
   description: '',
   price: 0,
+  stock:0,
   shopname: '',
-  pictureUrl: ''
+  url: ''
 });
+
+//从本地存储中获取 token
+// const token = localStorage.getItem('authToken'); 
+const token='eyJhbGciOiJIUzI1NiJ9.eyJyb2xlIjoxLCJpZCI6MSwidXNlcm5hbWUiOiJtaXpvcmUiLCJleHAiOjE3MjE2MzQwMjZ9.EeM1R1sEt-DRY6nSRwfUqdIJzozzVaoNU0VR0lfiYI4';
+
+
+
 
 //订单信息
 const data = reactive({
@@ -27,19 +36,23 @@ const data = reactive({
 //商品数量
 const quantity = ref(1);
 
-//获取商品信息
+//挂载时获取商品信息展示在页面的商品详情处
 onMounted(async () => {
   try {
-    const response = await axios.get(
-      'http://127.0.0.1:4523/m1/4324087-0-default/product_detail/${productId.value}'
-    );
-    const productData = response.data;
+    // const productId = route.params.productId;
+    const itemResponse = await axios.get(
+      /*`http://127.0.0.1:4523/m1/4324087-0-default/product_detail/${productId}`,{ headers: { Authorization: `Bearer ${token}` }}*/
+      `http://127.0.0.1:4523/m1/4275135-0-default/item/${productId}`,{ headers: { Authorization: `Bearer ${token}` }}
 
-    product.name = productData.name;
-    product.description = productData.description;
-    product.price = productData.price;
-    product.shopname = productData.shopname;
-    product.pictureUrl = productData.pictureUrl;
+    );
+
+    const productData = itemResponse.data.data;
+
+    productInfo.name = productData.title;
+    productInfo.description = productData.description;
+    productInfo.price = productData.price;
+    productInfo.shopname = productData.sellerId;
+    productInfo.pictureUrl = productData.url;
   } catch (error) {
     console.error('Error fetching product details:', error);
   }
@@ -49,31 +62,54 @@ function onClick() {
   router.push({ name: 'product_detail', params: { productId: productId.value } });
 }
 
-//提交订单
-const submitOrder = async () => {
+//处理支付
+const handlePayment = async () => {
   try {
+    // 构建请求头，携带 token
+    const headers = {
+      Authorization: `Bearer ${token}`
+    };
+
     // 收集订单数据，例如商品信息、购买数量、收货地址等
     const orderData = {
-      // 填充订单数据，例如：
       quantity: quantity.value,
       address: data.address,
       consignee: data.consignee,
-      phonenumber: data.phonenumber
+      
     };
 
-    // 发送订单数据到后台
-    const response = await axios.post(
+    // 发送订单数据到后台请求生成订单
+    const orderResponse = await axios.post(
       'http://127.0.0.1:4523/m1/4324087-0-default/order',
-      orderData
+      {orderData,
+      headers//请求头中携带token
+      }
     );
 
-    // 处理后台响应，例如显示成功消息或跳转到订单详情页
-    console.log('Order submitted successfully:', response.data);
-    // 处理成功提交订单的逻辑，例如跳转到订单详情页
+    // 处理后台返回的信息
+    const traceNo = orderResponse.traceNo; 
+    const totalAmount = orderResponse.totalAmount;
+    const subject = orderResponse.subject; 
+    //// 构建支付接口的参数对象
+    const paymentParams = {
+      traceNo: traceNo, 
+      totalAmount: totalAmount,
+      subject: encodeURIComponent(subject) 
+    };
+
+     //发送请求到支付接口
+    const paymentResponse = await axios.get('http://127.0.0.1:4523/m1/4275135-0-default/pay/create',  { params: paymentParams , headers,responseType: 'text' });
+    //获取返回的支付页面的HTML内容
+    const paymentHtml = paymentResponse.data;
+    // 打开新的窗口，并将支付页面的 HTML 内容加载到新窗口中
+    const paymentWindow = window.open('', '_blank');
+    // paymentWindow.onload=function(){
+      paymentWindow.document.write(paymentHtml);
+    // }
+    
+
   } catch (error) {
-    // 处理请求错误，显示错误消息或允许用户重新尝试提交订单
-    console.error('Failed to submit order:', error);
-    // 处理提交订单失败，显示错误消息
+    console.error('Failed to pay:', error);
   }
 };
 </script>
@@ -84,10 +120,9 @@ const submitOrder = async () => {
       <div class="flex-row justify-center items-start relative group">
         <div class="flex-row items-end pos">
           <img
-            class="shrink-0 image"
-            src="https://ide.code.fun/api/image?token=6618a1a5ec6c850012d20c62&name=1a78ac75b92cfd52cb8e19e0c3a8e00a.png"
-            alt="Description of the image1"
-          />
+  class="shrink-0 image"
+  src="https://ide.code.fun/api/image?token=661c9b87955475001195f22d&name=1a78ac75b92cfd52cb8e19e0c3a8e00a.png"
+/>
           <span class="ml-22 text">Easy BUY</span>
         </div>
         <span class="text_2">填写订单</span>
@@ -95,7 +130,7 @@ const submitOrder = async () => {
       <div class="mt-42 flex-row">
         <img
           class="image_2"
-          src="https://ide.code.fun/api/image?token=6618a1a5ec6c850012d20c62&name=60274a898e2131baf2769c5a294e5313.png"
+          src="https://ide.code.fun/api/image?token=661c9b87955475001195f22d&name=60274a898e2131baf2769c5a294e5313.png"
           alt="Description of the image2"
           @click="onClick"
         />
@@ -108,10 +143,10 @@ const submitOrder = async () => {
       <div class="flex-col self-center group_3">
         <div class="flex-col">
           <div class="flex-row items-center">
-            <img
-              class="shrink-0 image_3"
-              src="https://ide.code.fun/api/image?token=6618a1a5ec6c850012d20c62&name=885a621e9694e941c3b9656fa0d462a9.png"
-            />
+    <img
+            class="shrink-0 image_3"
+            src="https://ide.code.fun/api/image?token=661c9d4a955475001195f282&name=885a621e9694e941c3b9656fa0d462a9.png"
+          />
             <span class="font_2 text_5">收货地址：</span>
             <div class="flex-col justify-start items-start flex-1 view" style="position: relative">
               <!-- <span class="font_2 text_7">西安电子科技大学南校区</span> -->
@@ -136,9 +171,9 @@ const submitOrder = async () => {
           </div>
           <div class="mt-22 flex-row items-center">
             <img
-              class="shrink-0 image_3"
-              src="https://ide.code.fun/api/image?token=6618a1a5ec6c850012d20c62&name=e21908ba45a4b85d7239dc8d96ac8a7b.png"
-            />
+  class="shrink-0 image_3"
+  src="https://ide.code.fun/api/image?token=661c9b87955475001195f22d&name=e21908ba45a4b85d7239dc8d96ac8a7b.png"
+/>
             <span class="font_2 text_8">收货人：</span>
             <div
               class="flex-col justify-start items-start flex-1 view_2"
@@ -165,9 +200,9 @@ const submitOrder = async () => {
           </div>
           <div class="mt-22 flex-row items-center">
             <img
-              class="shrink-0 image_4"
-              src="https://ide.code.fun/api/image?token=6618a1a5ec6c850012d20c62&name=5a528b7f71b133d5c9c8f1e47270dcd7.png"
-            />
+  class="shrink-0 image_4"
+  src="https://ide.code.fun/api/image?token=661c9b87955475001195f22d&name=5a528b7f71b133d5c9c8f1e47270dcd7.png"
+/>
             <span class="font_2 text_10">联系电话：</span>
             <div
               class="flex-col justify-start items-start flex-1 text-wrapper_2"
@@ -198,23 +233,23 @@ const submitOrder = async () => {
         <div class="flex-col group_4">
           <div class="flex-row items-center">
             <img
-              class="image_5"
-              src="https://ide.code.fun/api/image?token=6618a1a5ec6c850012d20c62&name=a988bd89bb5a27b71d01c75a5835daf2.png"
-            />
-            <span class="ml-9"> 店铺名称: {{ product.shopname }} </span>
+  class="image_5"
+  src="https://ide.code.fun/api/image?token=661c9d4a955475001195f282&name=a988bd89bb5a27b71d01c75a5835daf2.png"
+/>
+            <span class="ml-9"> 店铺名称: {{ productInfo.shopname }} </span>
           </div>
           <div class="flex-row mt-19">
-            <img class="image_7" :src="product.pictureUrl" />
+            <img class="image_7" :src="productInfo.pictureUrl" />
             <div class="flex-col self-start group_5 ml-4">
               <!-- 调整product.name和product.description的布局 -->
               <div class="flex-col items-start self-stretch">
-                <span class="text_12">{{ product.name }}</span>
+                <span class="text_12">{{ productInfo.name }}</span>
                 <span class="mt-14 font_3 text_13 description" style="overflow: hidden">
-                  {{ product.description }}
+                  {{ productInfo.description }}
                 </span>
               </div>
               <div class="flex-row items-center mt-10">
-                <span class="font text_14 mr-4">￥{{ product.price }}</span>
+                <span class="font text_14 mr-4">￥{{ productInfo.price }}</span>
                 <el-input-number
                   v-model="quantity"
                   :min="1"
@@ -232,28 +267,30 @@ const submitOrder = async () => {
           <div class="flex-row equal-division ml-5">
             <div class="flex-row justify-between items-center equal-division-item section">
               <div class="flex-col justify-start section_3">
+                
                 <div class="flex-col justify-start section_4">
                   <div class="flex-col justify-start section_4">
                     <div class="flex-col justify-start section_4">
                       <div class="flex-col justify-start section_4">
                         <div class="flex-col justify-start items-center section_4">
                           <img
-                            class="image_9"
-                            src="https://ide.code.fun/api/image?token=6618a1a5ec6c850012d20c62&name=9de6439363b41d01b97cfa8fe9e78469.png"
-                          />
+  class="image_9"
+  src="https://ide.code.fun/api/image?token=661c9d4a955475001195f282&name=9de6439363b41d01b97cfa8fe9e78469.png"
+/>
                         </div>
                       </div>
                     </div>
                   </div>
                 </div>
               </div>
+              
               <span class="font_3 text_17">支付宝支付</span>
             </div>
             <div class="flex-row justify-between equal-division-item section_2 ml-19">
               <img
-                class="self-center image_10"
-                src="https://ide.code.fun/api/image?token=6618a1a5ec6c850012d20c62&name=c1b42a4262a094a58c7b4a1471945e58.png"
-              />
+  class="self-center image_10"
+  src="https://ide.code.fun/api/image?token=661c9d4a955475001195f282&name=c1b42a4262a094a58c7b4a1471945e58.png"
+/>
               <span class="self-start font_3 text_18">微信支付</span>
             </div>
           </div>
@@ -261,7 +298,7 @@ const submitOrder = async () => {
         <!-- 付款 -->
         <div class="flex-col group_8">
           <div class="flex-row">
-            <el-button @click="submitOrder" type="primary" class="text_19 flex-item text-wrapper_4">
+            <el-button @click="handlePayment" type="primary" class="text_19 flex-item text-wrapper_4">
               确认付款
             </el-button>
           </div>
